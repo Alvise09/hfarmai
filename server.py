@@ -66,5 +66,6 @@ def get_response():
         return jsonify({"response": "Failed to process the request."})
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    port = os.getenv("PORT", 5000)  # Usa la porta fornita da Render, o 5000 come fallback
+    app.run(host="0.0.0.0", port=int(port), debug=False)
