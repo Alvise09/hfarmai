@@ -10,7 +10,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Imposta la chiave API per OpenAI (o puoi prenderla dal tuo ambiente)
-os.environ["OPENAI_API_KEY"] = "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"
+api_key = os.getenv('OPENAI_API_KEY')
 
 # Funzione asincrona per scaricare il CSV da un URL
 async def download_csv(csv_url):
