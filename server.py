@@ -8,6 +8,7 @@ import requests  # Per scaricare il file CSV
 app = Flask(__name__)
 CORS(app)
 
+os.environ["OPENAI_API_KEY"]
 api_key = os.getenv('OPENAI_API_KEY')
 
 agent = None  # Inizializza agent come None
