@@ -3,59 +3,63 @@ from langchain_experimental.agents import create_csv_agent
 from langchain_openai import ChatOpenAI
 from flask_cors import CORS
 import os
-import requests
-import asyncio
+import requests  # Per scaricare il file CSV
 
 app = Flask(__name__)
 CORS(app)
 
-# Imposta la chiave API per OpenAI (o puoi prenderla dal tuo ambiente)
 api_key = os.getenv('OPENAI_API_KEY')
 
-# Funzione asincrona per scaricare il CSV da un URL
-async def download_csv(csv_url):
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, requests.get, csv_url)
-    
-    if response.status_code == 200:
-        with open('dataset.csv', 'wb') as f:
-            f.write(response.content)
-        return True
-    return False
+agent = None  # Inizializza agent come None
 
-# Funzione per inizializzare il modello e l'agent
-async def initialize_agent(csv_url):
-    # Scarica il CSV
-    if await download_csv(csv_url):
-        # Inizializza l'agent con il file CSV scaricato
+
+@app.route('/upload_csv', methods=['POST'])
+def upload_csv():
+    global agent
+    csv_url = request.json.get('csv_url')
+    
+    if not csv_url:
+        return jsonify({"response": "No CSV URL provided."}), 400
+
+    try:
+        # Scarica il file CSV
+        response = requests.get(csv_url)
+        if response.status_code == 200:
+            with open('dataset.csv', 'wb') as f:
+                f.write(response.content)  # Salva il file come 'dataset.csv'
+            print("[INFO] CSV file downloaded successfully.")
+        else:
+            raise Exception(f"Failed to download CSV file. Status code: {response.status_code}")
+
+        # Inizializza l'agente con il nuovo CSV
         llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
         agent = create_csv_agent(llm, 'dataset.csv', verbose=True, allow_dangerous_code=True)
-        return agent
-    return None
+        print("[INFO] Agent initialized successfully.")
+        return jsonify({"response": "CSV file uploaded and agent initialized successfully."}), 200
+    except Exception as e:
+        print(f"[ERROR] Failed to process CSV URL: {e}")
+        return jsonify({"response": f"Failed to process CSV URL: {e}"}), 500
+
 
 @app.route('/get_response', methods=['POST', 'OPTIONS'])
-async def get_response():
+def get_response():
     if request.method == 'OPTIONS':
         return jsonify({}), 200
 
+    if agent is None:
+        return jsonify({"response": "Agent not initialized. Upload a CSV file first."}), 400
+
     user_message = request.json.get('message')
-    csv_url = request.json.get('csv_url')
+    print(f"[DEBUG] Received message: {user_message}")
 
     if not user_message:
+        print("[DEBUG] Empty user message received.")
         return jsonify({"response": "Please ask a valid question."})
 
-    if not csv_url:
-        return jsonify({"response": "Please provide a valid CSV URL."})
-
     try:
-        # Inizializza l'agent con il link del CSV fornito
-        agent = await initialize_agent(csv_url)
-
-        if agent is None:
-            return jsonify({"response": "Failed to download or process CSV."})
-
-        # Ottieni la risposta dal bot
+        print("[DEBUG] Sending request to agent...")
         response = agent.run(user_message)
+        print(f"[DEBUG] Response from agent: {response}")
         return jsonify({"response": response})
     except Exception as e:
         print(f"[ERROR] Exception in agent response: {e}")
@@ -63,6 +67,4 @@ async def get_response():
 
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(debug=True)
